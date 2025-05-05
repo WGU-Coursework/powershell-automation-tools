@@ -1,6 +1,4 @@
-# PowerShell script to automate common system administration tasks
-# Designed for a small startup in Salt Lake City with 35 employees
-# Includes menu-driven interface with error handling
+# Name: Anthony Russano, Student ID: 012551576
 
 # Function to display the menu
 function Show-Menu {
