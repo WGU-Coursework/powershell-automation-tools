@@ -1,4 +1,4 @@
-# Task 1L Scripting In Powershell
+# Task 1: Scripting In Powershell
 
 ## Introduction
 
@@ -30,17 +30,36 @@ All supporting documentation, such as screenshots and proof of experience, shoul
       - Each time the user selects this prompt, the current date should precede the listing.
   - Prompt 2: User presses key 2
     - List the files inside the `Requirements1` folder in tabular format, sorted in ascending alphabetical order.
-    - Direct the output into a new file called `C916contents.txt` found in your “Requirements1” folder.
-  - List the current CPU and memory usage. (User presses key 3.)
-  - List all the different running processes inside your system. Sort the output by virtual size used least to greatest, and display it in grid format. (User presses key 4.)
-  - Exit the script execution. (User presses key 5.)
-- Apply scripting standards throughout your script, including the addition of comments that describe the behavior of each of the parts of the switch statement listed above.
-- Apply exception handling using try-catch for System.OutOfMemoryException.
+    - Direct the output into a new file called `C916contents.txt` found in your `Requirements1` folder.
+  - Prompt 3: User presses key 3
+    - List the current CPU and memory usage.
+  - Prompt 4: User presses key 4
+    - List all the different running processes inside your system.
+    - Sort the output by virtual size used least to greatest, and display it in grid format.
+  - Prompt 5: User presses key 5
+    - Exit the script execution.
+- Apply scripting standards throughout your script, including the addition of comments that describe the behavior of each of the propmts for the switch statement listed above.
+- Apply exception handling using `try-catch` for `System.OutOfMemoryException`.
 - Run your script and take a screenshot of the user results when each prompt (3–4) is chosen.
   - Save each screenshot within the `Requirements1` folder.
-  - Compress all files (original and new) within the folder to a ZIP archive.
-- When you are ready to submit your final script, run the Get-FileHash cmdlet against the `Requirements1` ZIP archive.
+- Compress all files (original and new) within the folder to a ZIP archive.
+- When you are ready to submit your final script, run the `Get-FileHash` cmdlet against the `Requirements1` ZIP archive.
   - Note that hash value and place it into the comment section when you submit your task.
+
+## Rubric
+
+- The PowerShell script is created within the “Requirements1” folder, it is named correctly, and student name and ID are accurately included as a comment on the first line.
+- Student uses switch statement and executes correctly.
+- The scripting solution includes an expression that only extracts .log files and redirects to a new file without overwriting existing data.
+- The scripting solution lists the files in the “Requirements” folder in tabular format and in ascending alphabetical order and the output is directed into a new file.
+- The scripting solution lists both the current CPU and memory usage.
+- The script logic accurately lists all running processes inside the system without listing any stopped processes. The list is in grid format and properly sorted.
+- The script logic to exit the script execution is accurate.
+- The script accurately applies scripting standards throughout the script, including added comments that describe the behavior of each part.
+- The script accurately applies exception handling using try-catch for System.OutOfMemoryException.
+- Accurate screenshots are provided for each action in parts B3–B4 in the correct folder and files within the folder are compressed to a ZIP archive.
+- A completed file hash has been run, and the hash value is included in the comment section.
+
 
 ### File Restrictions
 
