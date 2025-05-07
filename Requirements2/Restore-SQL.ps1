@@ -3,9 +3,9 @@
     Restores ClientDB and imports contacts.
 
 .DESCRIPTION
-    - Drops any existing ClientDB.
+    - Drops any existing ClientDB, forcibly rolling back active connections.
     - Creates ClientDB.
-    - Creates the Client_A_Contacts table.
+    - Drops & re-creates the Client_A_Contacts table.
     - Reads NewClientData.csv and INSERTs each row.
     - Exports the table contents to SqlResults.txt.
 
@@ -22,63 +22,72 @@ try {
     $dbName         = "ClientDB"
     $csvPath        = Join-Path $PSScriptRoot "NewClientData.csv"
 
-    # 1) Drop existing database if present
+    # 1) Drop database if it exists (force single-user + rollback immediate)
+    Write-Host "Checking for existing database '$dbName'..."
     $exists = Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-        -Query "SELECT COUNT(*) FROM sys.databases WHERE name = '$dbName';"
-    if ($exists.Column1 -gt 0) {
-        Write-Host "Database '$dbName' exists. Dropping..."
+        -Query "SELECT COUNT(*) AS Cnt FROM sys.databases WHERE name = N'$dbName';"
+    
+    if ($exists.Cnt -gt 0) {
+        Write-Host "Database '$dbName' exists. Dropping (killing connections)..."
+        $dropDbSql = @"
+ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE [$dbName];
+"@
         Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-            -Query "DROP DATABASE [$dbName];"
-        Write-Host "Database dropped."
-    } else {
+            -Query $dropDbSql -ErrorAction Stop
+        Write-Host "Database '$dbName' dropped."
+    }
+    else {
         Write-Host "Database '$dbName' does not exist."
     }
 
     # 2) Create new database
     Write-Host "Creating database '$dbName'..."
     Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-        -Query "CREATE DATABASE [$dbName];"
-    Write-Host "Database created."
+        -Query "CREATE DATABASE [$dbName];" -ErrorAction Stop
+    Write-Host "Database '$dbName' created."
 
-    # 3) Create table
-    $createTable = @"
+    # 3) Drop & create table
+    $createTableSql = @"
 USE [$dbName];
+
+IF OBJECT_ID('dbo.Client_A_Contacts','U') IS NOT NULL
+    DROP TABLE dbo.Client_A_Contacts;
+
 CREATE TABLE dbo.Client_A_Contacts (
-    ContactID     INT IDENTITY(1,1) PRIMARY KEY,
-    FirstName     NVARCHAR(50),
-    LastName      NVARCHAR(50),
-    Email         NVARCHAR(100),
-    Phone         NVARCHAR(20)
+    ContactID INT IDENTITY(1,1) PRIMARY KEY,
+    FirstName NVARCHAR(50),
+    LastName  NVARCHAR(50),
+    Email     NVARCHAR(100),
+    Phone     NVARCHAR(20)
 );
 "@
-    Write-Host "Creating table Client_A_Contacts..."
-    Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName -Query $createTable
-    Write-Host "Table created."
+    Write-Host "Re-creating table Client_A_Contacts..."
+    Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName `
+        -Query $createTableSql -ErrorAction Stop
+    Write-Host "Table Client_A_Contacts is ready."
 
-    # 4) Import CSV via INSERT statements
+    # 4) Insert CSV rows
     if (-not (Test-Path $csvPath)) {
         throw "Cannot find NewClientData.csv at path: $csvPath"
     }
-
     Write-Host "Importing data from CSV..."
     $rows = Import-Csv -Path $csvPath
+
     foreach ($r in $rows) {
-        # Escape single-quotes
+        # Escape single-quotes in text fields
         $fn    = ($r.FirstName -replace "'","''")
         $ln    = ($r.LastName  -replace "'","''")
         $email = ($r.Email     -replace "'","''")
         $phone = ($r.Phone     -replace "'","''")
 
-        $insert = @"
+        $insertSql = @"
 USE [$dbName];
 INSERT INTO dbo.Client_A_Contacts (FirstName, LastName, Email, Phone)
 VALUES (N'$fn', N'$ln', N'$email', N'$phone');
 "@
-
-        Invoke-Sqlcmd -ServerInstance $serverInstance `
-            -Database $dbName `
-            -Query $insert `
-            -ErrorAction Stop
+        Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName `
+            -Query $insertSql -ErrorAction Stop
     }
     Write-Host "Data imported."
 
