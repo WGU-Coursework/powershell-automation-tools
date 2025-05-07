@@ -3,11 +3,12 @@
     Restores ClientDB and imports contacts.
 
 .DESCRIPTION
-    - Drops any existing ClientDB, forcibly rolling back active connections.
+    - Drops any existing ClientDB (kills connections).
     - Creates ClientDB.
-    - Drops & re-creates the Client_A_Contacts table.
+    - Drops & creates dbo.Client_A_Contacts with columns matching:
+        first_name, last_name, city, county, zip, officePhone, mobilePhone.
     - Reads NewClientData.csv and INSERTs each row.
-    - Exports the table contents to SqlResults.txt.
+    - Exports the entire table to SqlResults.txt.
 
 AUTHOR
     YourFirstName YourLastName
@@ -18,83 +19,77 @@ STUDENT ID
 try {
     Import-Module SqlServer -ErrorAction Stop
 
-    $serverInstance = ".\SQLEXPRESS"
-    $dbName         = "ClientDB"
-    $csvPath        = Join-Path $PSScriptRoot "NewClientData.csv"
+    $si     = ".\SQLEXPRESS"
+    $db     = "ClientDB"
+    $csv    = Join-Path $PSScriptRoot "NewClientData.csv"
 
-    # 1) Drop database if it exists (force single-user + rollback immediate)
-    Write-Host "Checking for existing database '$dbName'..."
-    $exists = Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-        -Query "SELECT COUNT(*) AS Cnt FROM sys.databases WHERE name = N'$dbName';"
-    
+    # 1) Drop & recreate database
+    $exists = Invoke-Sqlcmd -ServerInstance $si -Database master `
+        -Query "SELECT COUNT(*) AS Cnt FROM sys.databases WHERE name = N'$db';"
     if ($exists.Cnt -gt 0) {
-        Write-Host "Database '$dbName' exists. Dropping (killing connections)..."
-        $dropDbSql = @"
-ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-DROP DATABASE [$dbName];
+        Write-Host "Dropping existing database '$db' (forcing disconnects)..."
+        $drop = @"
+ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE [$db];
 "@
-        Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-            -Query $dropDbSql -ErrorAction Stop
-        Write-Host "Database '$dbName' dropped."
+        Invoke-Sqlcmd -ServerInstance $si -Database master -Query $drop -ErrorAction Stop
     }
-    else {
-        Write-Host "Database '$dbName' does not exist."
-    }
+    Write-Host "Creating database '$db'..."
+    Invoke-Sqlcmd -ServerInstance $si -Database master `
+        -Query "CREATE DATABASE [$db];" -ErrorAction Stop
 
-    # 2) Create new database
-    Write-Host "Creating database '$dbName'..."
-    Invoke-Sqlcmd -ServerInstance $serverInstance -Database master `
-        -Query "CREATE DATABASE [$dbName];" -ErrorAction Stop
-    Write-Host "Database '$dbName' created."
-
-    # 3) Drop & create table
-    $createTableSql = @"
-USE [$dbName];
+    # 2) Drop & create table with matching columns
+    $tableDDL = @"
+USE [$db];
 
 IF OBJECT_ID('dbo.Client_A_Contacts','U') IS NOT NULL
     DROP TABLE dbo.Client_A_Contacts;
 
 CREATE TABLE dbo.Client_A_Contacts (
-    ContactID INT IDENTITY(1,1) PRIMARY KEY,
-    FirstName NVARCHAR(50),
-    LastName  NVARCHAR(50),
-    Email     NVARCHAR(100),
-    Phone     NVARCHAR(20)
+    ContactID    INT IDENTITY(1,1) PRIMARY KEY,
+    first_name   NVARCHAR(100),
+    last_name    NVARCHAR(100),
+    city         NVARCHAR(100),
+    county       NVARCHAR(100),
+    zip          NVARCHAR(20),
+    officePhone  NVARCHAR(50),
+    mobilePhone  NVARCHAR(50)
 );
 "@
-    Write-Host "Re-creating table Client_A_Contacts..."
-    Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName `
-        -Query $createTableSql -ErrorAction Stop
-    Write-Host "Table Client_A_Contacts is ready."
+    Write-Host "Creating table Client_A_Contacts..."
+    Invoke-Sqlcmd -ServerInstance $si -Database $db -Query $tableDDL -ErrorAction Stop
 
-    # 4) Insert CSV rows
-    if (-not (Test-Path $csvPath)) {
-        throw "Cannot find NewClientData.csv at path: $csvPath"
+    # 3) Import CSV rows
+    if (-not (Test-Path $csv)) {
+        throw "Cannot find NewClientData.csv at path: $csv"
     }
     Write-Host "Importing data from CSV..."
-    $rows = Import-Csv -Path $csvPath
-
+    $rows = Import-Csv -Path $csv
     foreach ($r in $rows) {
-        # Escape single-quotes in text fields
-        $fn    = ($r.FirstName -replace "'","''")
-        $ln    = ($r.LastName  -replace "'","''")
-        $email = ($r.Email     -replace "'","''")
-        $phone = ($r.Phone     -replace "'","''")
+        # escape single-quotes
+        $fn = ($r.first_name  -replace "'","''")
+        $ln = ($r.last_name   -replace "'","''")
+        $ci = ($r.city        -replace "'","''")
+        $co = ($r.county      -replace "'","''")
+        $zp = ($r.zip         -replace "'","''")
+        $op = ($r.officePhone -replace "'","''")
+        $mp = ($r.mobilePhone -replace "'","''")
 
-        $insertSql = @"
-USE [$dbName];
-INSERT INTO dbo.Client_A_Contacts (FirstName, LastName, Email, Phone)
-VALUES (N'$fn', N'$ln', N'$email', N'$phone');
+        $ins = @"
+USE [$db];
+INSERT INTO dbo.Client_A_Contacts
+  (first_name, last_name, city, county, zip, officePhone, mobilePhone)
+VALUES
+  (N'$fn', N'$ln', N'$ci', N'$co', N'$zp', N'$op', N'$mp');
 "@
-        Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName `
-            -Query $insertSql -ErrorAction Stop
+        Invoke-Sqlcmd -ServerInstance $si -Database $db `
+            -Query $ins -ErrorAction Stop
     }
-    Write-Host "Data imported."
 
-    # 5) Export query results
+    # 4) Export everything to SqlResults.txt
     Write-Host "Exporting SqlResults.txt..."
-    Invoke-Sqlcmd -ServerInstance $serverInstance -Database $dbName `
-        -Query "SELECT * FROM dbo.Client_A_Contacts;" |
+    Invoke-Sqlcmd -ServerInstance $si -Database $db `
+        -Query "SELECT * FROM dbo.Client_A_Contacts ORDER BY ContactID;" |
       Out-File -FilePath (Join-Path $PSScriptRoot "SqlResults.txt") -Encoding UTF8
 
     Write-Host "All done."
