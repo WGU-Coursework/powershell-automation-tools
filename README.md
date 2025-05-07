@@ -68,7 +68,7 @@ All supporting documentation, such as screenshots and proof of experience, shoul
 - File types allowed:
   - doc, docx, rtf, xls, xlsx, ppt, pptx, odt, pdf, csv, txt, qt, mov, mpg, avi, mp3, wav, mp4, wma, flv, asf, mpeg, wmv, m4v, svg, tif, tiff, jpeg, jpg, gif, png, zip, rar, tar, 7z
 
-# Task 1: Scripting In Powershell
+# Task 2: Server Roles and Features
 
 ## Introduction
 
