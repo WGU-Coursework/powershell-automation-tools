@@ -4,16 +4,16 @@
 
 .DESCRIPTION
     - Attempts to delete any existing Finance OU (warns and continues on failure).
-    - Creates a new Finance OU only if it doesn’t already exist.
-    - Imports users from financePersonnel.csv into that OU,
-      using these CSV columns:
+    - Creates the Finance OU only if it’s absent.
+    - Imports users from financePersonnel.csv into that OU, using these CSV columns:
         • First_Name
         • Last_Name
         • samAccount
         • PostalCode
         • OfficePhone
         • MobilePhone
-    - Exports the created users’ key properties to AdResults.txt.
+    - Skips any row whose SamAccountName or UPN is already in AD.
+    - Exports the created users’ DisplayName, PostalCode, OfficePhone, MobilePhone to AdResults.txt.
 
 AUTHOR
     YourFirstName YourLastName
@@ -27,7 +27,7 @@ try {
     $ouDN    = "OU=Finance,DC=consultingfirm,DC=com"
     $csvPath = Join-Path $PSScriptRoot "financePersonnel.csv"
 
-    # 1) Attempt to delete the existing OU (warn & continue on failure)
+    # 1) Delete existing Finance OU (warn & continue on failure)
     if ( Get-ADOrganizationalUnit -Filter "DistinguishedName -eq '$ouDN'" -ErrorAction SilentlyContinue ) {
         Write-Host "Finance OU exists. Attempting to delete..."
         try {
@@ -42,7 +42,7 @@ try {
         Write-Host "Finance OU does not exist."
     }
 
-    # 2) Create the Finance OU only if it's still absent
+    # 2) Create the OU only if it’s still absent
     if (-not ( Get-ADOrganizationalUnit -Filter "DistinguishedName -eq '$ouDN'" -ErrorAction SilentlyContinue )) {
         Write-Host "Creating Finance OU..."
         New-ADOrganizationalUnit -Name "Finance" -Path "DC=consultingfirm,DC=com" -ErrorAction Stop
@@ -58,10 +58,9 @@ try {
     }
     $users = Import-Csv -Path $csvPath
 
-    Write-Host "Detected CSV columns:`n$($users[0].PSObject.Properties.Name -join "`n")"
+    Write-Host "Detected CSV columns:`n$($users[0].PSObject.Properties.Name -join "`n")`n"
 
     foreach ($u in $users) {
-        # pull each field directly
         $given   = $u.First_Name
         $surname = $u.Last_Name
 
@@ -72,14 +71,19 @@ try {
 
         $display = "$given $surname"
         $sam     = $u.samAccount
+        $upn     = "$sam@consultingfirm.com"
 
-        # skip if this samAccount already exists
+        # 3a) Skip if SamAccountName already exists
         if ( Get-ADUser -Filter "SamAccountName -eq '$sam'" -ErrorAction SilentlyContinue ) {
-            Write-Host "User $sam already exists; skipping."
+            Write-Host "User '$sam' already exists; skipping."
             continue
         }
 
-        $upn = "$sam@consultingfirm.com"
+        # 3b) Skip if UPN already exists
+        if ( Get-ADUser -Filter "UserPrincipalName -eq '$upn'" -ErrorAction SilentlyContinue ) {
+            Write-Host "UPN '$upn' already exists; skipping."
+            continue
+        }
 
         Write-Host "Creating AD user: $display..."
         New-ADUser `
@@ -101,7 +105,7 @@ try {
     }
 
     # 4) Export results
-    Write-Host "Exporting AD results to AdResults.txt..."
+    Write-Host "`nExporting AD results to AdResults.txt..."
     Get-ADUser `
       -Filter * `
       -SearchBase $ouDN `
