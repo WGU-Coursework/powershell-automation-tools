@@ -16,9 +16,9 @@
     - Exports the created users’ DisplayName, PostalCode, OfficePhone, MobilePhone to AdResults.txt.
 
 AUTHOR
-    YourFirstName YourLastName
+    Anthony Russano
 STUDENT ID
-    123456789
+    012551576
 #>
 
 try {
